@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -72,7 +71,7 @@ func restoreStateFromDisk() (state.State, bool, error) {
 	// duplicate reader to both check version and migrate
 	var buf bytes.Buffer
 	r2 := io.TeeReader(r, &buf)
-	err = stateFromSnap.Unmarshal(context.Background(), r2)
+	err = stateFromSnap.Unmarshal(r2)
 	if err != nil {
 		return nil, false, err
 	}
@@ -124,7 +123,7 @@ func validateVersion(cfg *ipfscluster.Config, cCfg *raft.Config) error {
 	} else if snapExists && err != nil {
 		logger.Error("error after reading last snapshot. Snapshot potentially corrupt.")
 	} else if snapExists && err == nil {
-		err2 := state.Unmarshal(context.Background(), r)
+		err2 := state.Unmarshal(r)
 		if err2 != nil {
 			logger.Error("error unmarshalling snapshot. Snapshot potentially corrupt.")
 			return err2

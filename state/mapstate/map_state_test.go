@@ -2,7 +2,6 @@ package mapstate
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	msgpack "github.com/multiformats/go-multicodec/msgpack"
@@ -91,12 +90,12 @@ func TestMarshalUnmarshal(t *testing.T) {
 	ms := NewMapState()
 	ms.Add(c)
 	buf := new(bytes.Buffer)
-	err := ms.Marshal(context.Background(), buf)
+	err := ms.Marshal(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ms2 := NewMapState()
-	err = ms2.Unmarshal(context.Background(), buf)
+	err = ms2.Unmarshal(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +133,7 @@ func TestMigrateFromV1(t *testing.T) {
 	buf2 := bytes.NewBuffer(v1Bytes)
 	// Unmarshal first to check this is v1
 	ms := NewMapState()
-	err = ms.Unmarshal(context.Background(), buf2)
+	err = ms.Unmarshal(buf2)
 	if err != nil {
 		t.Error(err)
 	}

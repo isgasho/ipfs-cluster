@@ -623,7 +623,7 @@ func SnapshotSave(cfg *Config, newState state.State, pids []peer.ID) error {
 		return err
 	}
 
-	err = p2praft.EncodeSnapshot(context.Background(), newState, sink)
+	err = p2praft.EncodeSnapshot(newState, sink)
 	if err != nil {
 		sink.Cancel()
 		return err

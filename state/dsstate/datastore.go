@@ -3,7 +3,6 @@
 package dsstate
 
 import (
-	"context"
 	"errors"
 	"io"
 
@@ -183,7 +182,7 @@ type serialEntry struct {
 }
 
 // Marshal dumps the state to a writer.
-func (st *State) Marshal(ctx context.Context, w io.Writer) error {
+func (st *State) Marshal(w io.Writer) error {
 	q := query.Query{
 		Prefix: st.namespace.String(),
 	}
@@ -218,7 +217,7 @@ func (st *State) Marshal(ctx context.Context, w io.Writer) error {
 
 // Unmarshal from the given reader.
 // As of now, it does not drop the previous state, only adds/overwrites it.
-func (st *State) Unmarshal(ctx context.Context, r io.Reader) error {
+func (st *State) Unmarshal(r io.Reader) error {
 	dec := codec.NewDecoder(r, st.codecHandle)
 	for {
 		var entry serialEntry

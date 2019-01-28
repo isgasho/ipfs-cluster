@@ -4,7 +4,6 @@ package state
 
 // State represents the shared state of the cluster and it
 import (
-	"context"
 	"io"
 
 	cid "github.com/ipfs/go-cid"
@@ -30,7 +29,7 @@ type State interface {
 	// Return the version of this state
 	GetVersion() int
 	// Marshal serializes the state to a byte slice
-	Marshal(context.Context, io.Writer) error
+	Marshal(io.Writer) error
 	// Unmarshal deserializes the state from marshaled bytes
-	Unmarshal(context.Context, io.Reader) error
+	Unmarshal(io.Reader) error
 }

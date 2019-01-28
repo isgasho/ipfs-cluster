@@ -6,7 +6,6 @@ package mapstate
 // - add a case to the switch statement for the previous format version
 // - update the code copying the from mapStateVx to mapState
 import (
-	"context"
 	"errors"
 	"io"
 
@@ -188,7 +187,7 @@ func (st *mapStateV5) next() migrateable {
 // Last time we use this migration approach.
 func (st *MapState) next() migrateable { return nil }
 func (st *MapState) unmarshal(r io.Reader) error {
-	return st.dst.Unmarshal(context.Background(), r)
+	return st.dst.Unmarshal(r)
 }
 
 // Migrate code

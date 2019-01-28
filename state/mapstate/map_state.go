@@ -5,7 +5,6 @@ package mapstate
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"io"
 	"io/ioutil"
 
@@ -88,7 +87,7 @@ func (st *MapState) Migrate(r io.Reader) error {
 
 	// Try to do our special unmarshal
 	buf := bytes.NewBuffer(full)
-	err = st.Unmarshal(context.TODO(), buf)
+	err = st.Unmarshal(buf)
 	if err != nil {
 		return err
 	}
@@ -117,13 +116,13 @@ func (st *MapState) GetVersion() int {
 
 // Marshal encodes the state to the given writer. This implements
 // go-libp2p-raft.Marshable.
-func (st *MapState) Marshal(ctx context.Context, w io.Writer) error {
-	return st.dst.Marshal(ctx, w)
+func (st *MapState) Marshal(w io.Writer) error {
+	return st.dst.Marshal(w)
 }
 
 // Unmarshal decodes the state from the given reader. This implements
 // go-libp2p-raft.Marshable.
-func (st *MapState) Unmarshal(ctx context.Context, r io.Reader) error {
+func (st *MapState) Unmarshal(r io.Reader) error {
 	// TODO: Re-do when on version 6.
 	// This is only to enable migration.
 
@@ -140,7 +139,7 @@ func (st *MapState) Unmarshal(ctx context.Context, r io.Reader) error {
 	}
 
 	// Try to unmarshal normally
-	err = st.dst.Unmarshal(ctx, iobuf)
+	err = st.dst.Unmarshal(iobuf)
 	if err == nil {
 		return nil
 	}
