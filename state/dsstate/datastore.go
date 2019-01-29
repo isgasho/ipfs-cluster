@@ -19,7 +19,10 @@ import (
 
 var logger = logging.Logger("dsstate")
 
-// State implements the IPFS Cluster state interface.
+// State implements the IPFS Cluster "state" interface by wrapping
+// a go-datastore and choosing how api.Pin objects are stored
+// in it. It also provides serialization methods for the whole
+// state which are datastore-independent.
 type State struct {
 	ds          ds.Datastore
 	codecHandle codec.Handle
@@ -27,14 +30,22 @@ type State struct {
 	version     int
 }
 
-// DefaultHandler returns the codec handler of choice (Msgpack).
+// DefaultHandle returns the codec handler of choice (Msgpack).
 func DefaultHandle() codec.Handle {
 	h := &codec.MsgpackHandle{}
 	return h
 }
 
 // New returns a new state using the given datastore.
-// TODO: Consider supporting GC datastores.
+//
+// The version number is used to set the state version in the cases where the
+// state is new.
+//
+// All keys are namespaced with the given string, allowing that this datastore
+// can be sharded in different namespaces.
+//
+// The Handle controls options for the serialization of items and the state
+// itself.
 func New(dstore ds.Datastore, version int, namespace string, handle codec.Handle) (*State, error) {
 	if handle == nil {
 		handle = DefaultHandle()
@@ -61,7 +72,7 @@ func New(dstore ds.Datastore, version int, namespace string, handle codec.Handle
 	return st, nil
 }
 
-// Add
+// Add adds a new Pin or replaces an existing one.
 func (st *State) Add(c api.Pin) error {
 	ps, err := st.serializePin(&c)
 	if err != nil {
@@ -70,7 +81,8 @@ func (st *State) Add(c api.Pin) error {
 	return st.ds.Put(st.key(c.Cid), ps)
 }
 
-// Rm
+// Rm removes an existing Pin. It is a no-op when the
+// item does not exist.
 func (st *State) Rm(c cid.Cid) error {
 	err := st.ds.Delete(st.key(c))
 	if err == ds.ErrNotFound {
@@ -79,6 +91,9 @@ func (st *State) Rm(c cid.Cid) error {
 	return err
 }
 
+// Get returns a Pin from the store and whether it
+// was present. When not present, a default pin
+// is returned.
 func (st *State) Get(c cid.Cid) (api.Pin, bool) {
 	v, err := st.ds.Get(st.key(c))
 	if err != nil {
@@ -91,6 +106,7 @@ func (st *State) Get(c cid.Cid) (api.Pin, bool) {
 	return *p, true
 }
 
+// Has returns whether a Cid is stored.
 func (st *State) Has(c cid.Cid) bool {
 	ok, err := st.ds.Has(st.key(c))
 	if err != nil {
@@ -99,6 +115,8 @@ func (st *State) Has(c cid.Cid) bool {
 	return ok && err == nil
 }
 
+// List returns the unsorted list of all Pins that have been added to the
+// datastore.
 func (st *State) List() []api.Pin {
 	q := query.Query{
 		Prefix: st.namespace.String(),
@@ -141,7 +159,8 @@ func (st *State) List() []api.Pin {
 	return pins
 }
 
-// Migrate is a no-op for now.
+// Migrate migrates an older state version to the current one.
+// This is a no-op for now.
 func (st *State) Migrate(r io.Reader) error {
 	return nil
 }
@@ -150,6 +169,7 @@ func (st *State) versionKey() ds.Key {
 	return st.namespace.Child(ds.NewKey("/version"))
 }
 
+// GetVersion returns the current state version.
 func (st *State) GetVersion() int {
 	v, err := st.ds.Get(st.versionKey())
 	if err != nil {
@@ -166,6 +186,7 @@ func (st *State) GetVersion() int {
 	return int(v[0])
 }
 
+// SetVersion allows to manually modify the state version.
 func (st *State) SetVersion(v int) error {
 	err := st.ds.Put(st.versionKey(), []byte{byte(v)})
 	if err != nil {
@@ -181,7 +202,9 @@ type serialEntry struct {
 	Value []byte `codec:"v"`
 }
 
-// Marshal dumps the state to a writer.
+// Marshal dumps the state to a writer. It does this by encoding every
+// key/value in the store. The keys are stored without the namespace part to
+// reduce the size of the snapshot.
 func (st *State) Marshal(w io.Writer) error {
 	q := query.Query{
 		Prefix: st.namespace.String(),
@@ -215,8 +238,10 @@ func (st *State) Marshal(w io.Writer) error {
 	return nil
 }
 
-// Unmarshal from the given reader.
-// As of now, it does not drop the previous state, only adds/overwrites it.
+// Unmarshal reads and parses a previous dump of the state.
+// All the parsed key/values are added to the store. As of now,
+// Unmarshal does not empty the existing store from any values
+// before unmarshaling from the given reader.
 func (st *State) Unmarshal(r io.Reader) error {
 	dec := codec.NewDecoder(r, st.codecHandle)
 	for {
@@ -237,16 +262,19 @@ func (st *State) Unmarshal(r io.Reader) error {
 	return nil
 }
 
-// /namespace/cidKey
+// convert Cid to /namespace/cidKey
 func (st *State) key(c cid.Cid) ds.Key {
 	k := dshelp.CidToDsKey(c)
 	return st.namespace.Child(k)
 }
 
+// convert /namespace/cidKey to Cid
 func (st *State) unkey(k ds.Key) (cid.Cid, error) {
 	return dshelp.DsKeyToCid(ds.NewKey(k.BaseNamespace()))
 }
 
+// this decides how a Pin object is serialized to be stored in the
+// datastore. Changing this may require a migration!
 func (st *State) serializePin(c *api.Pin) ([]byte, error) {
 	var buf []byte
 	enc := codec.NewEncoderBytes(&buf, st.codecHandle)
@@ -260,6 +288,8 @@ func (st *State) serializePin(c *api.Pin) ([]byte, error) {
 	return buf, err
 }
 
+// this deserializes a Pin object from the datastore. It should be
+// the exact opposite from serializePin.
 func (st *State) deserializePin(c cid.Cid, buf []byte) (*api.Pin, error) {
 	dec := codec.NewDecoderBytes(buf, st.codecHandle)
 	var ps api.PinSerial
