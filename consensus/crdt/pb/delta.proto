@@ -1,0 +1,18 @@
+syntax = "proto3";
+package crdt.pb;
+
+message Delta {
+  repeated Element elements = 1;
+  repeated Element tombstones = 2;
+  uint64 height = 3;
+  string topic = 4;
+}
+
+message Element {
+  string cid = 1;
+  string block = 2;
+  int32 rmin = 4;
+  int32 rmax = 5;
+  string name = 6;
+  uint64 shard_size = 7;
+}

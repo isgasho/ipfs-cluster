@@ -347,6 +347,7 @@ func (cc *Consensus) AddPeer(pid peer.ID) error {
 		// Being here means we are the leader and can commit
 		cc.shutdownLock.RLock() // do not shutdown while committing
 		finalErr = cc.raft.AddPeer(peer.IDB58Encode(pid))
+
 		cc.shutdownLock.RUnlock()
 		if finalErr != nil {
 			time.Sleep(cc.config.CommitRetryDelay)

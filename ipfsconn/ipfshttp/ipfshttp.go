@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -615,6 +616,27 @@ func (ipfs *Connector) BlockGet(c cid.Cid) ([]byte, error) {
 	defer cancel()
 	url := "block/get?arg=" + c.String()
 	return ipfs.postCtx(ctx, url, "", nil)
+}
+
+// FetchRefs asks IPFS to download blocks recursively to the given depth.
+// It discards the response, but waits until it completes.
+func (ipfs *Connector) FetchRefs(ctx context.Context, c cid.Cid, maxDepth int) error {
+	ctx, cancel := context.WithTimeout(ipfs.ctx, ipfs.config.IPFSPinTimeout)
+	defer cancel()
+
+	q := url.Values{}
+	v.Set("recursive", "true")
+	v.Set("unique", "false") // same memory on IPFS side
+	v.Set("max-depth", fmt.Sprintf("%d", maxDepth))
+	v.Set("arg", c.String())
+
+	url := fmt.Sprintf("refs?%s", q.Encode())
+	err := ipfs.postDiscardBodyCtx(ctx, path)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("refs for %s sucessfully fetched", hash)
+	return nil
 }
 
 // Returns true every updateMetricsMod-th time that we
