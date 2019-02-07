@@ -6,6 +6,7 @@ package mapstate
 // - add a case to the switch statement for the previous format version
 // - update the code copying the from mapStateVx to mapState
 import (
+	"context"
 	"errors"
 	"io"
 
@@ -179,7 +180,7 @@ func (st *mapStateV5) unmarshal(r io.Reader) error {
 func (st *mapStateV5) next() migrateable {
 	v6 := NewMapState()
 	for _, v := range st.PinMap {
-		v6.Add(v.ToPin())
+		v6.Add(context.Background(), v.ToPin())
 	}
 	return v6.(*MapState)
 }

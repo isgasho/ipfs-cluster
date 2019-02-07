@@ -5,6 +5,7 @@ package mapstate
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 
@@ -16,6 +17,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	sync "github.com/ipfs/go-datastore/sync"
 	logging "github.com/ipfs/go-log"
+	trace "go.opencensus.io/trace"
 )
 
 // Version is the map state Version. States with old versions should
@@ -46,12 +48,17 @@ func NewMapState() state.State {
 }
 
 // Add adds a Pin to the internal map.
-func (st *MapState) Add(c api.Pin) error {
+func (st *MapState) Add(ctx context.Context, c api.Pin) error {
+	ctx, span := trace.StartSpan(ctx, "state/map/Add")
+	defer span.End()
 	return st.dst.Add(c)
 }
 
 // Rm removes a Cid from the internal map.
-func (st *MapState) Rm(c cid.Cid) error {
+func (st *MapState) Rm(ctx context.Context, c cid.Cid) error {
+	ctx, span := trace.StartSpan(ctx, "state/map/Rm")
+	defer span.End()
+
 	return st.dst.Rm(c)
 }
 
@@ -60,27 +67,38 @@ func (st *MapState) Rm(c cid.Cid) error {
 // fields initialized, regardless of the
 // presence of the provided Cid in the state.
 // To check the presence, use MapState.Has(cid.Cid).
-func (st *MapState) Get(c cid.Cid) (api.Pin, bool) {
+func (st *MapState) Get(ctx context.Context, c cid.Cid) (api.Pin, bool) {
+	ctx, span := trace.StartSpan(ctx, "state/map/Get")
+	defer span.End()
+
 	return st.dst.Get(c)
 }
 
 // Has returns true if the Cid belongs to the State.
-func (st *MapState) Has(c cid.Cid) bool {
+func (st *MapState) Has(ctx context.Context, c cid.Cid) bool {
+	ctx, span := trace.StartSpan(ctx, "state/map/Has")
+	defer span.End()
 	return st.dst.Has(c)
 }
 
 // List provides the list of tracked Pins.
-func (st *MapState) List() []api.Pin {
+func (st *MapState) List(ctx context.Context) []api.Pin {
+	ctx, span := trace.StartSpan(ctx, "state/map/List")
+	defer span.End()
 	return st.dst.List()
 }
 
 // Migrate restores a snapshot from the state's internal bytes and if
 // necessary migrates the format to the current version.
-func (st *MapState) Migrate(r io.Reader) error {
+func (st *MapState) Migrate(ctx context.Context, r io.Reader) error {
+	ctx, span := trace.StartSpan(ctx, "state/map/Migrate")
+	defer span.End()
+
 	// TODO: Remove after migration to v6!
 	// Read the full state - Unfortunately there is no way to
 	// migrate v5 to v6 without doing this.
 	full, err := ioutil.ReadAll(r)
+
 	if err != nil {
 		return err
 	}
