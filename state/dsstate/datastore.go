@@ -3,19 +3,24 @@
 package dsstate
 
 import (
+	"context"
 	"errors"
 	"io"
 
 	"github.com/ipfs/ipfs-cluster/api"
+	"github.com/ipfs/ipfs-cluster/state"
 
 	cid "github.com/ipfs/go-cid"
 	ds "github.com/ipfs/go-datastore"
 	query "github.com/ipfs/go-datastore/query"
 	dshelp "github.com/ipfs/go-ipfs-ds-help"
 	logging "github.com/ipfs/go-log"
-
 	codec "github.com/ugorji/go/codec"
+
+	trace "go.opencensus.io/trace"
 )
+
+var _ state.State = (*State)(nil)
 
 var logger = logging.Logger("dsstate")
 
@@ -73,7 +78,10 @@ func New(dstore ds.Datastore, version int, namespace string, handle codec.Handle
 }
 
 // Add adds a new Pin or replaces an existing one.
-func (st *State) Add(c api.Pin) error {
+func (st *State) Add(ctx context.Context, c api.Pin) error {
+	_, span := trace.StartSpan(ctx, "state/dsstate/Add")
+	defer span.End()
+
 	ps, err := st.serializePin(&c)
 	if err != nil {
 		return err
@@ -83,7 +91,10 @@ func (st *State) Add(c api.Pin) error {
 
 // Rm removes an existing Pin. It is a no-op when the
 // item does not exist.
-func (st *State) Rm(c cid.Cid) error {
+func (st *State) Rm(ctx context.Context, c cid.Cid) error {
+	_, span := trace.StartSpan(ctx, "state/dsstate/Rm")
+	defer span.End()
+
 	err := st.ds.Delete(st.key(c))
 	if err == ds.ErrNotFound {
 		return nil
@@ -94,7 +105,10 @@ func (st *State) Rm(c cid.Cid) error {
 // Get returns a Pin from the store and whether it
 // was present. When not present, a default pin
 // is returned.
-func (st *State) Get(c cid.Cid) (api.Pin, bool) {
+func (st *State) Get(ctx context.Context, c cid.Cid) (api.Pin, bool) {
+	_, span := trace.StartSpan(ctx, "state/dsstate/Get")
+	defer span.End()
+
 	v, err := st.ds.Get(st.key(c))
 	if err != nil {
 		return api.PinCid(c), false
@@ -107,7 +121,10 @@ func (st *State) Get(c cid.Cid) (api.Pin, bool) {
 }
 
 // Has returns whether a Cid is stored.
-func (st *State) Has(c cid.Cid) bool {
+func (st *State) Has(ctx context.Context, c cid.Cid) bool {
+	_, span := trace.StartSpan(ctx, "state/dsstate/Has")
+	defer span.End()
+
 	ok, err := st.ds.Has(st.key(c))
 	if err != nil {
 		logger.Error(err)
@@ -117,7 +134,10 @@ func (st *State) Has(c cid.Cid) bool {
 
 // List returns the unsorted list of all Pins that have been added to the
 // datastore.
-func (st *State) List() []api.Pin {
+func (st *State) List(ctx context.Context) []api.Pin {
+	_, span := trace.StartSpan(ctx, "state/dsstate/List")
+	defer span.End()
+
 	q := query.Query{
 		Prefix: st.namespace.String(),
 	}
@@ -161,7 +181,9 @@ func (st *State) List() []api.Pin {
 
 // Migrate migrates an older state version to the current one.
 // This is a no-op for now.
-func (st *State) Migrate(r io.Reader) error {
+func (st *State) Migrate(ctx context.Context, r io.Reader) error {
+	ctx, span := trace.StartSpan(ctx, "state/map/Migrate")
+	defer span.End()
 	return nil
 }
 
