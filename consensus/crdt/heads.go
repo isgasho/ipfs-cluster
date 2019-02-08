@@ -115,7 +115,7 @@ func (hh *heads) write() error {
 
 // IsHead returns if a given cid is among the current heads.
 func (hh *heads) IsHead(c cid.Cid) bool {
-	if hh.heads == nil {
+	if hh.heads == nil { // maybe unnecessary
 		logger.Warning("no heads loaded")
 		return false
 	}

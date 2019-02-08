@@ -2,7 +2,6 @@ package crdt
 
 import (
 	"context"
-	"sync"
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/ipfs/ipfs-cluster/state"
@@ -135,7 +134,7 @@ func (mcrdt *merkleCRDT) walkBranch(current, top cid.Cid) error {
 		return errors.Wrapf(err, "merging delta from %s", c)
 	}
 
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	// walkToChildren
 	for _, l := range nd.Links() {
@@ -161,4 +160,8 @@ func (mcrdt *merkleCRDT) walkBranch(current, top cid.Cid) error {
 	}
 
 	return nil
+}
+
+func (mcrdt *merkleCRDT) State() state.State {
+	return mcrdt.set
 }

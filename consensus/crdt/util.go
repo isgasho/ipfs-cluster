@@ -6,6 +6,7 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore/query"
+	"github.com/ipfs/ipfs-cluster/api"
 )
 
 func cidFromResult(r query.Result) (cid.Cid, error) {
@@ -64,4 +65,31 @@ func pbElemDsKey(e *pb.Elem) (ds.Key, error) {
 		return err
 	}
 	return dshelp.CidToDsKey(id).Child(dshelp.CidToDsKey(block))
+}
+
+func pbElemToPin(e *pb.Elem, height uint64, block cid.Cid) *api.Pin {
+	id, err := cid.Decode(e.GetCid())
+
+	// note this is used in a context where the CID
+	// deserialized and checked before.
+	if err != nil {
+		logger.Errorf("error decoding CID from pb.Element: %s", err)
+	}
+
+	pin := api.PinCid(id)
+	pin.Height = height
+
+	if e.Block != "" {
+		block, err := cid.Decode(e.Block)
+		if err != nil {
+			logger.Errorf("error decoding Block CID from pb.Element: %s", err)
+		}
+		pin.Block = block
+	}
+
+	pin.ReplicationFactorMin = e.GetRmin()
+	pin.ReplicationFactorMax = e.GerRMax()
+	pin.Name = e.GetName()
+	pin.ShardSize = e.GetShardSize()
+	return &pin
 }

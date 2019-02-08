@@ -67,7 +67,6 @@ func (st *MapState) Rm(ctx context.Context, c cid.Cid) error {
 // The returned object has its Cid and Allocations
 // fields initialized, regardless of the
 // presence of the provided Cid in the state.
-// To check the presence, use MapState.Has(cid.Cid).
 func (st *MapState) Get(ctx context.Context, c cid.Cid) (api.Pin, bool) {
 	ctx, span := trace.StartSpan(ctx, "state/map/Get")
 	defer span.End()
@@ -128,7 +127,6 @@ func (st *MapState) Migrate(ctx context.Context, r io.Reader) error {
 }
 
 // GetVersion returns the current version of this state object.
-// It is not necessarily up to date
 func (st *MapState) GetVersion() int {
 	return st.dst.GetVersion()
 }
