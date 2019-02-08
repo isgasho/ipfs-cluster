@@ -125,6 +125,13 @@ func (hh *heads) IsHead(c cid.Cid) bool {
 	return ok
 }
 
+func (hh *heads) Len() int {
+	hh.mux.RLock()
+	defer hh.mux.RUnlock()
+	// Len of a map is not thread safe
+	return len(hh.heads)
+}
+
 // Replace replaces a head with a new cid.
 func (hh *heads) Replace(h, c cid.Cid) {
 	if hh.heads == nil {

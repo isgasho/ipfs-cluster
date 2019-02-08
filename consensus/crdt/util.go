@@ -68,7 +68,7 @@ func pbElemDsKey(e *pb.Elem) (ds.Key, error) {
 }
 
 func pbElemToPin(e *pb.Elem, height uint64, block cid.Cid) *api.Pin {
-	id, err := cid.Decode(e.GetCid())
+	id, err := cid.Cast(e.GetCid())
 
 	// note this is used in a context where the CID
 	// deserialized and checked before.
@@ -80,7 +80,7 @@ func pbElemToPin(e *pb.Elem, height uint64, block cid.Cid) *api.Pin {
 	pin.Height = height
 
 	if e.Block != "" {
-		block, err := cid.Decode(e.Block)
+		block, err := cid.Cast(e.Block)
 		if err != nil {
 			logger.Errorf("error decoding Block CID from pb.Element: %s", err)
 		}
@@ -92,4 +92,26 @@ func pbElemToPin(e *pb.Elem, height uint64, block cid.Cid) *api.Pin {
 	pin.Name = e.GetName()
 	pin.ShardSize = e.GetShardSize()
 	return &pin
+}
+
+func pinToPbElem(pin *api.Pin) *pb.Element {
+	return &pb.Element{
+		Cid:       pin.Cid.Bytes(),
+		Rmin:      pin.ReplicationFactorMin,
+		Rmax:      pin.ReplicationFactorMax,
+		ShardSize: pin.ShardSize,
+	}
+}
+
+func deltaMerge(d1, d2 *pb.Delta) *pb.Delta {
+	result := &pb.Delta{
+		Elements:   append(d1.GetElements(), d2.GetElements()),
+		Tombstones: append(d1.GetElements(), d2.GetElements()),
+		Height:     d1.GetHeight(),
+		Topic:      d1.GetTopic(),
+	}
+	if h := d2.GetHeight(); h > result.Height {
+		result.Height = h
+	}
+	return result
 }

@@ -9,8 +9,8 @@ message Delta {
 }
 
 message Element {
-  string cid = 1;
-  string block = 2;
+  bytes cid = 1;
+  bytes block = 2;
   int32 rmin = 4;
   int32 rmax = 5;
   string name = 6;

@@ -98,6 +98,17 @@ func (ng *crdtDAGService) GetHeight(ctx context.Context, c cid.Cid) (uint64, err
 	return delta.Height, nil
 }
 
+func (ng *crdtDAGService) FetchRefs(ctx context.Context, depth int) error {
+	return ng.rpcClient.CallContext(
+		ctx,
+		"",
+		"Cluster",
+		"IPFSConnectorFetchRefs",
+		depth,
+		&struct{}{},
+	)
+}
+
 func extractDelta(nd *ipld.Node) (*pb.Delta, error) {
 	ci := nd.Cid()
 	switch ci.Prefix().Codec {
@@ -114,4 +125,8 @@ func extractDelta(nd *ipld.Node) (*pb.Delta, error) {
 	default:
 		return nil, errors.New("unknown CID codec")
 	}
+}
+
+func makeBlock(delta *pb.Delta, codec int) *ipld.Node {
+
 }

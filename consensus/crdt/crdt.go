@@ -2,8 +2,10 @@ package crdt
 
 import (
 	"context"
+	"sync"
 
 	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/ipfs-cluster/api"
 	"github.com/ipfs/ipfs-cluster/state"
 	"github.com/pkg/errors"
 )
@@ -15,37 +17,32 @@ const (
 	setNs    = "set"
 )
 
-var (
-	messageBufferLen = 10
-)
-
 // merkleCRDT implements a Merkle-CRDT KV-Store.
 type merkleCRDT struct {
-	// a channel to receive broadcasted blocks
-	sub <-chan cid.Cid
-	pub chan<- cid.Cid
-
-	// A way of fetching and putting blocks to IPFS
-	dags crdtDAGService
+	// Actual Cluster state (that we manage)
+	cState state.State
 
 	// permanent storage
-	namespace ds.Key
 	store     ds.Datastore
+	namespace ds.Key
 	set       *crdtSet
 	heads     *heads
 	blocks    *blocks
 
-	// Actual Cluster state (that we manage)
-	cState state.State
+	dags      *crdtDAGService
+	broadcast func(cid.Cid) error
+
+	curDeltaMux sync.Mutex
+	curDelta    *pb.Delta
 }
 
 func newCRDT(
-	sub <-chan cid.Cid,
-	pub <-chan cid.Cid,
-	dags *crdtDAGService,
+	st state.State,
 	store ds.Datastore,
 	namespace ds.Key,
-	st state.State,
+
+	dags *crdtDAGService,
+	broadcast func(cid.Cid) error,
 ) (*merkleCRDT, error) {
 
 	// <namespace>/<topic>/set
@@ -60,32 +57,22 @@ func newCRDT(
 	blocks := newBlocks(store, fullBlocksNs)
 
 	mcrdt := &merkleCRDT{
-		sub:       sub,
-		pub:       pub,
-		ipfs:      ipfs,
+		cState:    st,
 		store:     store,
 		namespace: ds.Key,
 		set:       set,
 		heads:     heads,
 		blocks:    blocks,
-		cState:    st,
+		dags:      dags,
+		broadcast: broadcast,
 	}
-
-	go mcrdt.subHandle()
 
 	return mcrdt
 }
 
-// goroutine
-func (mcrdt *merkleCRDT) subHandle() {
-	for c := range sub {
-		mcrdt.handleBlock(c)
-	}
-}
-
-// handleBlock takes care of applying vetting, retrieving and applying
+// HandleBlock takes care of applying vetting, retrieving and applying
 // CRDT blocks to the MerkleCRDT.
-func (mcrdt *merkleCRDT) handleBlock(c cid.Cid) {
+func (mcrdt *merkleCRDT) HandleBlock(ctx context.Context, c cid.Cid) error {
 
 	// Ignore already known blocks.
 	// This includes the case when the block is a current
@@ -93,21 +80,27 @@ func (mcrdt *merkleCRDT) handleBlock(c cid.Cid) {
 	known, err := mcrdt.blocks.IsKnown(c)
 	if err != nil {
 		logger.Errorf("error checking for known block: %s", err)
-		return
+		return nil
 	}
 	if known {
-		return
+		return nil
 	}
 
 	// It is the first time we see this block. Process it.
 	// Lock and load heads.
 	err := mcrdt.heads.LockHeads()
 	if err != nil {
-		logger.Errorf("error locking heads: %s", err)
-		return
+		return errors.Wrap(err, "locking heads")
 	}
 	// At the end, write any new heads, remove old ones and unlock.
 	defer mcrdt.heads.UnlockHeads()
+
+	if mcrdt.heads.Len() == 0 { // no heads? We must be syncing from scratch
+		err := mcrdt.dags.FetchRefs(ctx, -1)
+		if err != nil {
+			logger.Warning(errors.Wrap(err, "fetching refs"))
+		}
+	}
 
 	// Walk down from this block.
 	err := mcrdt.walkBranch(c, c)
@@ -123,7 +116,7 @@ func (mcrdt *merkleCRDT) handleBlock(c cid.Cid) {
 // and will be fetched.
 func (mcrdt *merkleCRDT) walkBranch(current, top cid.Cid) error {
 	// TODO: Pre-fetching of children?
-	nd, delta, err := mcrdt.blocks.Fetch(context.TODO(), c)
+	nd, delta, err := mcrdt.dags.GetDelta(context.TODO(), c)
 	if err != nil {
 		return errors.Wrapf(err, "fetching block %s", c)
 	}
@@ -164,4 +157,35 @@ func (mcrdt *merkleCRDT) walkBranch(current, top cid.Cid) error {
 
 func (mcrdt *merkleCRDT) State() state.State {
 	return mcrdt.set
+}
+
+func (mcrdt *merkleCRDT) AddToDelta(pin *api.Pin) {
+	elem := pinToPbElem(pin)
+	mcrdt.updateDelta(mcrdt.set.add(elem))
+}
+
+func (mcrdt *merkleCRDT) RmvToDelta(c cid.Cid) {
+	mcrdt.updateDelta(mcrdt.set.rmv(c))
+}
+
+func (mcrdt *merkleCRDT) Add(pin *api.Pin) error {
+	elem := pinToPbElem(pin)
+	delta := mcrdt.set.add(elem)
+	return mcrdt.publish(delta)
+}
+
+func (mcrdt *merkleCRDT) Rmv(c cid.Cid) error {
+	delta := mcrdt.set.rmv(c)
+	return mcrdt.publish(delta)
+}
+
+func (mcrdt *merkleCRDT) updateDelta(newDelta *pb.Delta) {
+	mcrdt.curDeltaMux.Lock()
+	defer mcrdt.curDeltaMux.Unlock()
+	mcrdt.curDelta = deltaMerge(mcrdt.curDelta, newDelta)
+}
+
+// Create a block, write it to IPFS, publish the CID.
+func (mcrdt *merkleCRDT) publish(deta *pb.Delta) {
+
 }

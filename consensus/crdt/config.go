@@ -11,7 +11,7 @@ import (
 var configKey = "crdt"
 
 var (
-	DefaultTopics        = []string{"ipfs"}
+	DefaultClusterName   = "ipfs-cluster"
 	DefaultPeersetMetric = "ping"
 	DefaultMaxHeads      = 10
 )
@@ -25,8 +25,8 @@ type Config struct {
 	// with valid metric of this type is part of it).
 	PeersetMetric string
 
-	// The topics we wish to subscribe to
-	Topics []string
+	// The topic we wish to subscribe to
+	ClusterName string
 
 	// How many different diverging heads we track before we
 	// trigger the commit of an empty block.
@@ -34,8 +34,8 @@ type Config struct {
 }
 
 type jsonConfig struct {
-	Topics        []string `json:"topics"`
-	PeersetMetric string   `json:"peerset_metric,omitempty"`
+	ClusterName   string `json:"cluster_name"`
+	PeersetMetric string `json:"peerset_metric,omitempty"`
 }
 
 func (cfg *Config) ConfigKey() string {
@@ -43,8 +43,13 @@ func (cfg *Config) ConfigKey() string {
 }
 
 func (cfg *Config) Validate() error {
+	if cfg.ClusterName == "" {
+		return errors.New("crdt.cluster_name cannot be empty")
+
+	}
+
 	if cfg.PeersetMetric == "" {
-		errors.New("crdt.PeersetMetric needs a name")
+		return errors.New("crdt.PeersetMetric needs a name")
 	}
 }
 
@@ -57,14 +62,14 @@ func (cfg *Config) LoadJSON(raw []byte) error {
 
 	cfg.Default()
 
-	cfg.Topics = jcfg.Topics
+	cfg.ClusterName = jcfg.ClusterName
 	config.SetIfNotDefault(jcfg.PeersetMetric, &cfg.PeersetMetric)
 	return cfg.Validate()
 }
 
 func (cfg *Config) ToJSON() ([]byte, error) {
 	jcfg := &jsonConfig{
-		Topics:        cfg.Topics,
+		ClusterName:   cfg.ClusterName,
 		PeersetMetric: "",
 	}
 
@@ -77,7 +82,7 @@ func (cfg *Config) ToJSON() ([]byte, error) {
 }
 
 func (cfg *Config) Default() error {
-	cfg.Topics = DefaultTopics
+	cfg.ClusterName = DefaultClusterName
 	cfg.PeersetMetric = DefaultPeersetMetric
 	return nil
 }
